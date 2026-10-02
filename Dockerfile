@@ -95,6 +95,15 @@ RUN curl -fL \
     && rm -f /tmp/heroic.deb \
     && rm -rf /var/lib/apt/lists/*
 
+# Instalar o Google Chrome estável
+RUN curl -fL \
+        "https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb" \
+        -o /tmp/google-chrome.deb \
+    && apt-get update \
+    && apt-get install -y /tmp/google-chrome.deb \
+    && rm -f /tmp/google-chrome.deb \
+    && rm -rf /var/lib/apt/lists/*
+
 # Expose Heroic on PATH (mirrors the steam symlink above) so Sunshine's
 # detached commands can invoke it, and seed Sunshine's assets with the
 # Heroic cover art so "image-path": "heroic.png" resolves to a real icon.
