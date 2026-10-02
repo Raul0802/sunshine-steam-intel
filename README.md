@@ -1,6 +1,7 @@
 # headless-sunshine-steam-docker (Edição Intel QuickSync)
 
 Um host Linux com Sunshine, Steam e Moonlight Web contêinerizado e sem monitor físico (headless), otimizado especificamente para GPUs Intel.
+
 Nota: Este projeto é um fork/adaptação do repositório original headless-sunshine-steam-docker de numsu, reestruturado e otimizado para funcionar com gráficos integrados Intel (QuickSync/VAAPI) e monitor virtual headless.
 
 Este projeto foi construído com base em:
