@@ -1,7 +1,13 @@
 .env
 data
 .cortexkit
+moonlight-state/
 
 # Python
 __pycache__/
 *.py[cod]
+
+data/
+games/
+moonlight-state/
+.env

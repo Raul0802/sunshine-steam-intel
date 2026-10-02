@@ -1,63 +1,36 @@
 services:
   sunshine-steam:
-    build:
-      context: .
-    image: headless-sunshine-steam:local
-    container_name: headless-sunshine-steam
-    restart: unless-stopped
+      build: .
+      container_name: sunshine-steam
+      privileged: true
+      shm_size: 2g
+      environment:
+        - TZ=America/Belem
+        - SUNSHINE_USER=admin
+        - SUNSHINE_PASS=admin
+      ports:
+        - "8080:8080"
+        - "47984-47990:47984-47990/tcp"
+        - "48010:48010/tcp"
+        - "47998-48000:47998-48000/udp"
+      volumes:
+        - ./data:/home/gamer
+        - ./games:/games
+        - /dev/input:/dev/input:ro
+        - /dev/uinput:/dev/uinput
+        - /run/udev:/run/udev:ro
+        - ./intel-xorg.sh:/usr/local/bin/generate-xorg-config:ro
+      devices:
+        - /dev/dri:/dev/dri
+      restart: unless-stopped
+  moonlight-web:
+    image: mrcreativ3001/moonlight-web-stream:latest
+    container_name: moonlight-web
     network_mode: host
-
-    ipc: host
-    shm_size: "4gb"
-
     environment:
-      SUNSHINE_CORS_ORIGIN: ${SUNSHINE_CORS_ORIGIN}
-      NVIDIA_VISIBLE_DEVICES: "${NVIDIA_GPU_ID}"
-      NVIDIA_DRIVER_CAPABILITIES: all
-
-    runtime: nvidia
-
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              device_ids: ["${NVIDIA_GPU_ID}"]
-              capabilities: [gpu]
-
-    devices:
-      - /dev/uinput:/dev/uinput
-      - /dev/dri:/dev/dri
-
+      - BIND_ADDRESS=0.0.0.0:8081
+      - SSL_CERTIFICATE=/moonlight-web/server/moonlight-cert.pem
+      - SSL_PRIVATE_KEY=/moonlight-web/server/moonlight-key.pem
     volumes:
-      - /dev/input:/dev/input
-      - /run/udev:/run/udev:ro
-      - ./data:/home/gamer
-      - "${GAMES_DIR:-./data/games}:/games"
-
-      # Host NVIDIA NGX loader DLLs (nvngx.dll, _nvngx.dll). Proton copies
-      # these from next to the host libGLX_nvidia into every prefix, but the
-      # toolkit does not expose that subdir inside the container, so Proton
-      # silently skips it and DX games hide DLSS. The entrypoint seeds
-      # prefixes from here at boot (scripts/seed-proton-ngx.sh). If your
-      # driver keeps them elsewhere, point NVIDIA_WINE_DIR there
-      # (dpkg -L libnvidia-gl | grep 'nvidia/wine'); an empty dir disables
-      # seeding. Requires the source to exist: mkdir -p it if unsure.
-      - "${NVIDIA_WINE_DIR:-/usr/lib/x86_64-linux-gnu/nvidia/wine}:/run/host-nvidia-wine:ro"
-
-      # DLSS Bridge installation
-      - /home/metsamir/.local/bin/dlss-bridge:/home/gamer/.local/bin/dlss-bridge:ro
-      - /home/metsamir/.local/libexec/dlss-bridge:/home/gamer/.local/libexec/dlss-bridge:ro
-      - /home/metsamir/.local/state/dlss-bridge:/home/gamer/.local/state/dlss-bridge
-
-    device_cgroup_rules:
-      - "c 13:* rwm"
-      - "c 226:* rwm"
-
-    cap_add:
-      - SYS_NICE
-
-    security_opt:
-      - seccomp=unconfined
-      - apparmor=unconfined
-
+      - ./moonlight-state:/moonlight-web/server
+    restart: unless-stopped

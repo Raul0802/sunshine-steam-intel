@@ -103,6 +103,22 @@ This loads the module until the next reboot. To load it automatically on every b
 echo uinput | sudo tee /etc/modules-load.d/uinput.conf
 ```
 
+### Isolate virtual input from a GNOME/Wayland host
+
+Sunshine creates virtual input devices in the host kernel. This udev rule tells GNOME/libinput to ignore the Sunshine
+devices, while the container's Xorg uses `evdev` to receive them. Install the rule on the host:
+
+```bash
+sudo install -D -m 0644 udev/72-sunshine-virtual-seat.rules /etc/udev/rules.d/72-sunshine-virtual-seat.rules
+sudo udevadm control --reload-rules
+```
+
+Then rebuild and recreate the Sunshine container:
+
+```bash
+docker compose up -d --build --force-recreate sunshine-steam
+```
+
 ---
 
 # Installation
@@ -202,6 +218,10 @@ Save the configuration.
 ---
 
 # Connect Moonlight
+
+Open Moonlight Web over HTTPS at `https://HOST_IP:8081`. The local certificate is self-signed, so the browser will ask
+you to accept it once. HTTPS gives the browser a secure context for full keyboard capture; the user's and paired-host
+data are persisted in the ignored `moonlight-state/` directory.
 
 ## 1. Add the server
 

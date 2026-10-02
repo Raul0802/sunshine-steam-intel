@@ -68,6 +68,10 @@ RUN dpkg --add-architecture i386 \
         joystick \
     && rm -rf /var/lib/apt/lists/*
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends xserver-xorg-input-evdev xterm \
+    && rm -rf /var/lib/apt/lists/*
+
 # Ubuntu installs the Steam launcher under /usr/games.
 RUN ln -sf /usr/games/steam /usr/local/bin/steam
 
@@ -376,15 +380,47 @@ fi
 
 pactl set-default-sink headless
 
+sunshine system_tray=disabled &
+SUNSHINE_PID="$!"
+PIDS+=("$SUNSHINE_PID")
+
+for _ in $(seq 1 100); do
+    if grep -q 'Name="Mouse passthrough"' /proc/bus/input/devices \
+        && grep -q 'Name="Keyboard passthrough"' /proc/bus/input/devices; then
+        break
+    fi
+
+    if ! kill -0 "$SUNSHINE_PID" 2>/dev/null; then
+        echo "Sunshine exited before creating virtual input devices." >&2
+        exit 1
+    fi
+
+    sleep 0.1
+done
+
+if ! grep -q 'Name="Mouse passthrough"' /proc/bus/input/devices \
+    || ! grep -q 'Name="Keyboard passthrough"' /proc/bus/input/devices; then
+    echo "Sunshine virtual mouse and keyboard did not appear." >&2
+    exit 1
+fi
+
+touch /run/user/1000/sunshine-input-ready
+
+for _ in $(seq 1 100); do
+    [[ -e /run/user/1000/sunshine-xorg-ready ]] && break
+    sleep 0.1
+done
+
+if [[ ! -e /run/user/1000/sunshine-xorg-ready ]]; then
+    echo "Xorg did not restart after Sunshine input became ready." >&2
+    exit 1
+fi
+
 openbox &
 PIDS+=("$!")
 
 picom --backend glx &
 PIDS+=("$!")
-
-sunshine &
-SUNSHINE_PID="$!"
-PIDS+=("$SUNSHINE_PID")
 
 wait "$SUNSHINE_PID"
 EOF
@@ -551,6 +587,10 @@ if ! DISPLAY=:0 xrandr >/dev/null 2>&1; then
     exit 1
 fi
 
+INPUT_READY_FILE=/run/user/1000/sunshine-input-ready
+XORG_READY_FILE=/run/user/1000/sunshine-xorg-ready
+rm -f "$INPUT_READY_FILE" "$XORG_READY_FILE"
+
 # Sunshine managed settings
 # Only the Web UI origin and resolution commands are managed automatically.
 
@@ -710,6 +750,54 @@ su - "$GAMER_USER" -c \
 
 SESSION_PID="$!"
 
+for _ in $(seq 1 100); do
+    [[ -e "$INPUT_READY_FILE" ]] && break
+
+    if ! kill -0 "$SESSION_PID" 2>/dev/null; then
+        echo "Gaming session exited before Sunshine input was ready." >&2
+        exit 1
+    fi
+
+    sleep 0.1
+done
+
+if [[ ! -e "$INPUT_READY_FILE" ]]; then
+    echo "Timed out waiting for Sunshine virtual input devices." >&2
+    exit 1
+fi
+
+kill -TERM "$XORG_PID" 2>/dev/null || true
+wait "$XORG_PID" 2>/dev/null || true
+
+Xorg :0 \
+    -noreset \
+    -nolisten tcp \
+    -ac \
+    >/var/log/Xorg.0.log 2>&1 &
+
+XORG_PID="$!"
+
+for _ in $(seq 1 100); do
+    if DISPLAY=:0 xrandr >/dev/null 2>&1; then
+        break
+    fi
+
+    if ! kill -0 "$XORG_PID" 2>/dev/null; then
+        echo "Xorg exited while attaching Sunshine input devices:" >&2
+        tail -100 /var/log/Xorg.0.log >&2 || true
+        exit 1
+    fi
+
+    sleep 0.1
+done
+
+if ! DISPLAY=:0 xrandr >/dev/null 2>&1; then
+    echo "Xorg did not become ready after attaching Sunshine input devices." >&2
+    tail -100 /var/log/Xorg.0.log >&2 || true
+    exit 1
+fi
+
+touch "$XORG_READY_FILE"
 wait "$SESSION_PID"
 EOF
 
